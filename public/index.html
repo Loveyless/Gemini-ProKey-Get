@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini API Key 高级检测器</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+  <div class="container">
+    <header>
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="logo-icon">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+        <path d="M2 17l10 5 10-5"></path>
+        <path d="M2 12l10 5 10-5"></path>
+      </svg>
+      <h1>Gemini API Key 高级检测器</h1>
+    </header>
+
+    <div class="input-section">
+      <label for="apiKeysInput">API Keys (每行一个)</label>
+      <textarea id="apiKeysInput" placeholder="输入您的 API Keys..."></textarea>
+    </div>
+
+    <div class="input-section">
+      <label for="modelInput">检测模型</label>
+      <input type="text" id="modelInput" placeholder="例如: gemini-1.5-pro-latest">
+      <div class="model-suggestions">
+        <span class="suggestion-tag">gemini-2.5-pro</span>
+        <span class="suggestion-tag">gemini-2.5-flash</span>
+        <span class="suggestion-tag">gemini-2.5-pro-preview-03-25</span>
+      </div>
+    </div>
+
+    <button id="checkButton">
+      <span class="button-text">开始检测</span>
+      <div class="spinner" style="display: none;"></div>
+    </button>
+
+    <div id="results-container">
+      <div id="status-message"></div>
+      <table id="results-table">
+        <thead>
+          <tr>
+            <th>Key (部分)</th>
+            <th>模型</th>
+            <th>状态</th>
+            <th>详细信息</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- 结果行将在这里动态生成 -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const checkButton = document.getElementById('checkButton');
+    const apiKeysInput = document.getElementById('apiKeysInput');
+    const modelInput = document.getElementById('modelInput');
+    const resultsTableBody = document.querySelector('#results-table tbody');
+    const statusMessage = document.getElementById('status-message');
+    const suggestionTags = document.querySelectorAll('.suggestion-tag');
+    const buttonText = checkButton.querySelector('.button-text');
+    const spinner = checkButton.querySelector('.spinner');
+
+    // 为建议标签添加点击事件
+    suggestionTags.forEach(tag => {
+      tag.addEventListener('click', () => {
+        modelInput.value = tag.textContent;
+      });
+    });
+
+    checkButton.addEventListener('click', async () => {
+      const keys = apiKeysInput.value.split('\n').map(k => k.trim()).filter(k => k);
+      const model = modelInput.value.trim();
+
+      if (keys.length === 0) {
+        alert('请输入至少一个 API Key。');
+        return;
+      }
+      if (!model) {
+        alert('请输入要检测的模型名称。');
+        return;
+      }
+
+      // --- UI 进入加载状态 ---
+      checkButton.disabled = true;
+      buttonText.style.display = 'none';
+      spinner.style.display = 'block';
+      resultsTableBody.innerHTML = '';
+      statusMessage.textContent = `向本地服务器发送 ${keys.length} 个 Key，请求检测 [${model}] 模型...`;
+      statusMessage.className = 'status-info';
+
+      try {
+        // 请求我们自己的后端API
+        const response = await fetch('/check-keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keys: keys, model: model }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `服务器错误: ${response.statusText}`);
+        }
+
+        const results = await response.json();
+
+        let successCount = 0;
+        results.forEach(data => {
+          const row = resultsTableBody.insertRow();
+          row.className = data.isValid ? 'valid-key' : 'invalid-key';
+
+          const keyDisplay = `${data.key.substring(0, 4)}...${data.key.slice(-4)}`;
+          let statusText;
+          let detailsText = data.error || '调用成功';
+
+          if (data.isValid) {
+            statusText = '✅ 有效';
+            successCount++;
+          } else {
+            statusText = '❌ 无效/失败';
+            // 优化错误信息显示
+            if (data.statusCode === 403) detailsText = '权限不足 (很可能是免费Key试图访问Pro模型)';
+            if (data.statusCode === 400) detailsText = '请求错误 (可能是Key格式错误或模型不存在)';
+            if (String(data.statusCode).startsWith('5')) detailsText = 'Google 服务器端错误';
+          }
+
+          row.innerHTML = `
+                    <td>${keyDisplay}</td>
+                    <td>${data.model}</td>
+                    <td class="status-cell">${statusText}</td>
+                    <td>${detailsText}</td>
+                `;
+        });
+
+        statusMessage.textContent = `检测完成！${successCount} 个 Key 对 [${model}] 模型有效，${keys.length - successCount} 个无效。`;
+        statusMessage.className = 'status-success';
+
+      } catch (error) {
+        statusMessage.textContent = `请求失败: ${error.message}`;
+        statusMessage.className = 'status-error';
+      } finally {
+        // --- UI 恢复正常状态 ---
+        checkButton.disabled = false;
+        buttonText.style.display = 'inline';
+        spinner.style.display = 'none';
+      }
+    });
+  </script>
+
+</body>
+
+</html>

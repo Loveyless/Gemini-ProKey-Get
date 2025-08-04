@@ -1,0 +1,24 @@
+{
+  "name": "gemini-prokey-get",
+  "version": "1.0.0",
+  "description": "批量检测获取gemini的pro key",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Loveyless/Gemini-ProKey-Get.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Loveyless/Gemini-ProKey-Get/issues"
+  },
+  "homepage": "https://github.com/Loveyless/Gemini-ProKey-Get#readme",
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
